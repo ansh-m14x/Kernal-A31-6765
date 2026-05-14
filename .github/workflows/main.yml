@@ -2,6 +2,10 @@ name: Sync EROFS Source
 on:
   workflow_dispatch:
 
+# Ensure the action has permission to write to the repo
+permissions:
+  contents: write
+
 jobs:
   sync_erofs:
     runs-on: ubuntu-latest
@@ -9,9 +13,9 @@ jobs:
       - name: Checkout Target Repository
         uses: actions/checkout@v4
         with:
-          repository: ansh-m14x/kernel-oppo-a31
-          ref: exfat  # Corrected from 'branch' to 'ref'
+          ref: exfat
           path: target_repo
+          fetch-depth: 0 # Fetch all history so we can push back
 
       - name: Clone Source Repository (Sparse)
         run: |
@@ -20,14 +24,15 @@ jobs:
           git remote add origin https://github.com/oppo-source/android_kernel_oppo_mt6765
           git config core.sparseCheckout true
           echo "fs/erofs/" >> .git/info/sparse-checkout
+          # Pull the specific branch from Oppo source verified in 11434.jpg
           git pull origin oppo/mt6765_r_11.1.4_a16
 
-      - name: Sync Files and Commit
+      - name: Sync Files and Push to Exfat
         run: |
-          # Create directory if it doesn't exist in target
+          # Ensure directory exists in your Oppo A31 source
           mkdir -p target_repo/fs/erofs
           
-          # Copy files verified in 11434.jpg
+          # Sync files
           cp -rv source_repo/fs/erofs/* target_repo/fs/erofs/
           
           cd target_repo
@@ -35,5 +40,11 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
           git add fs/erofs/
-          git commit -m "fs: backport erofs from mt6765_r_11.1.4_a16" || exit 0
-          git push origin exfat
+          
+          # Only commit and push if there are actual changes
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "fs: backport erofs from mt6765_r_11.1.4_a16"
+            git push origin HEAD:exfat
+          else
+            echo "No changes detected, files might already be there."
+          fi
