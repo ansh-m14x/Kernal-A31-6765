@@ -1,0 +1,39 @@
+name: Sync EROFS Source
+on:
+  workflow_dispatch: # Allows manual trigger from the Actions tab
+
+jobs:
+  sync_erofs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Target Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ansh-m14x/kernel-oppo-a31
+          branch: exfat
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: target_repo
+
+      - name: Clone Source Repository (Sparse)
+        run: |
+          mkdir source_repo && cd source_repo
+          git init
+          git remote add origin https://github.com/oppo-source/android_kernel_oppo_mt6765
+          git config core.sparseCheckout true
+          echo "fs/erofs/" >> .git/info/sparse-checkout
+          git pull origin oppo/mt6765_r_11.1.4_a16
+
+      - name: Sync Files and Commit
+        run: |
+          # Copy EROFS source from photo 11434.jpg context to your local tree
+          cp -rv source_repo/fs/erofs/* target_repo/fs/erofs/
+          
+          cd target_repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Stage the new EROFS files
+          git add fs/erofs/
+          git commit -m "fs: backport erofs from oppo mt6765_r_11.1.4_a16" || echo "No changes to commit"
+          git push origin exfat
+
