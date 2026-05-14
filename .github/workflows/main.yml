@@ -1,6 +1,6 @@
 name: Sync EROFS Source
 on:
-  workflow_dispatch: # Allows manual trigger from the Actions tab
+  workflow_dispatch:
 
 jobs:
   sync_erofs:
@@ -10,8 +10,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ansh-m14x/kernel-oppo-a31
-          branch: exfat
-          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: exfat  # Corrected from 'branch' to 'ref'
           path: target_repo
 
       - name: Clone Source Repository (Sparse)
@@ -25,15 +24,16 @@ jobs:
 
       - name: Sync Files and Commit
         run: |
-          # Copy EROFS source from photo 11434.jpg context to your local tree
+          # Create directory if it doesn't exist in target
+          mkdir -p target_repo/fs/erofs
+          
+          # Copy files verified in 11434.jpg
           cp -rv source_repo/fs/erofs/* target_repo/fs/erofs/
           
           cd target_repo
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Stage the new EROFS files
           git add fs/erofs/
-          git commit -m "fs: backport erofs from oppo mt6765_r_11.1.4_a16" || echo "No changes to commit"
+          git commit -m "fs: backport erofs from mt6765_r_11.1.4_a16" || exit 0
           git push origin exfat
-
