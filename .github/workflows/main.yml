@@ -1,4 +1,4 @@
-name: Sync EROFS Source
+name: Sync EROFS Source (Xiaomi mt6765 Port)
 on:
   workflow_dispatch:
 
@@ -9,26 +9,30 @@ jobs:
   sync_erofs:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Target Repository (Exfat Branch)
+      - name: Checkout Your Kernel (Exfat Branch)
         uses: actions/checkout@v4
         with:
-          ref: exfat  # Targets the exfat branch directly
+          ref: exfat
           path: target_repo
           fetch-depth: 0 
 
-      - name: Clone Source Repository (Sparse)
+      - name: Clone Xiaomi Source Repository (Sparse)
         run: |
           mkdir source_repo && cd source_repo
           git init
-          git remote add origin https://github.com/oppo-source/android_kernel_oppo_mt6765
+          git remote add origin https://github.com/creativchic/android_kernel_xiaomi_mt6765
           git config core.sparseCheckout true
           echo "fs/erofs/" >> .git/info/sparse-checkout
-          # Pull from the verified Oppo source
-          git pull origin oppo/mt6765_r_11.1.4_a16
+          # Pull from the alps-0.6 branch as requested
+          git pull --depth 1 origin alps-0.6
 
-      - name: Sync Files and Force Push to Exfat
+      - name: Purge Old and Sync New EROFS Source
         run: |
+          # Completely remove the old, broken EROFS folder
+          rm -rf target_repo/fs/erofs
           mkdir -p target_repo/fs/erofs
+          
+          # Copy the pre-ported source from Xiaomi repo
           cp -rv source_repo/fs/erofs/* target_repo/fs/erofs/
           
           cd target_repo
@@ -38,9 +42,8 @@ jobs:
           git add fs/erofs/
           
           if [ -n "$(git status --porcelain)" ]; then
-            git commit -m "fs: backport erofs from mt6765_r_11.1.4_a16"
-            # This line forces the push to the exfat branch specifically
+            git commit -m "fs: replace erofs with pre-ported source from xiaomi-mt6765 (alps-0.6)"
             git push origin HEAD:exfat
           else
-            echo "No changes detected. Files may already be on the exfat branch."
+            echo "No changes detected. Source may already be identical."
           fi
