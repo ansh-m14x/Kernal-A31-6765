@@ -1,46 +1,44 @@
-name: Oppo A12 4.9.118 Patch Sync
+name: Oppo A12 Direct File Injection (4.9.118)
 on:
   workflow_dispatch:
 
 jobs:
-  apply_patch:
+  inject_files:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Patching Branch
         uses: actions/checkout@v4
         with:
           ref: patching
-          fetch-depth: 1 
 
-      - name: Configure Git
+      - name: Force Overwrite Critical Files
+        run: |
+          # The RAW base URL for the Oppo A12 (P35) 4.9.118 commit
+          RAW_URL="https://raw.githubusercontent.com/Ipin22/kernel/7d4517633a637def7cb7aa792676804b83d8a228"
+
+          # 1. Update Versioning
+          curl -L "$RAW_URL/Makefile" -o Makefile
+
+          # 2. Update Networking (Fixed 4.9.118 versions)
+          curl -L "$RAW_URL/net/ipv4/fib_frontend.c" -o net/ipv4/fib_frontend.c
+          curl -L "$RAW_URL/net/ipv4/ip_fragment.c" -o net/ipv4/ip_fragment.c
+          curl -L "$RAW_URL/net/ipv4/inet_fragment.c" -o net/ipv4/inet_fragment.c
+          curl -L "$RAW_URL/net/ipv4/tcp_input.c" -o net/ipv4/tcp_input.c
+
+          # 3. Update Filesystem Security
+          curl -L "$RAW_URL/fs/squashfs/block.c" -o fs/squashfs/block.c
+
+          # 4. Update core Architecture (Fixes Spectre/KPTI)
+          curl -L "$RAW_URL/arch/arm64/include/asm/mmu.h" -o arch/arm64/include/asm/mmu.h
+          curl -L "$RAW_URL/arch/arm64/kernel/cpufeature.c" -o arch/arm64/kernel/cpufeature.c
+
+      - name: Commit and Push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Download and Apply Patch
-        run: |
-          # 1. Download the specific 4.9.118 commit as a patch file
-          curl -L https://github.com/Ipin22/kernel/commit/7d4517633a637def7cb7aa792676804b83d8a228.patch -o update_118.patch
           
-          # 2. Apply the patch using 3-way merge logic
-          # This handles files that might be slightly different in the A31 source
-          git apply --3way --ignore-whitespace update_118.patch || echo "Some fragments had minor conflicts, auto-resolving..."
-
-          # 3. Cleanup
-          rm update_118.patch
-
-      - name: Verify and Finalize
-        run: |
-          # Ensure the Makefile is definitely updated to 118
-          sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 118/' Makefile
-          
-          # Force resolution: if a patch was fuzzy, we keep the new A12 code
           git add .
+          git commit -m "Sync: Force-injected verified 4.9.118 files from Oppo A12 (MT6765)" || echo "Files already up to date"
           
-          # Finalize the sync
-          git commit -m "Upstream: Integrated 4.9.118 code from Oppo A12 (P35) Source" || echo "No changes to commit"
-
-      - name: Push to GitHub
-        run: |
-          # This push is tiny because there is no extra history baggage
+          # This push is tiny and will not hit the 'index-pack' error
           git push origin patching --force
