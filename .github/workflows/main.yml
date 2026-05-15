@@ -11,22 +11,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create KSU Branch
+      - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Create and switch to ksu branch, or reset it if it exists
+
+      - name: Create or Reset KSU Branch
+        run: |
+          # Create ksu branch from current head, force it if it exists
           git checkout -B ksu
           git push origin ksu --force
 
-      - name: Sync from KSU Reference Repo
+      - name: Sync from KAGA-KOKO Reference
         run: |
-          # Add the reference repo as a remote
           git remote add ksu_ref https://github.com/KAGA-KOKO/kernel-oppo-a31.git
           git fetch ksu_ref ksu
           
-          # Merge the KSU changes (using 'theirs' strategy to resolve conflicts automatically)
-          git merge ksu_ref/ksu -X theirs --allow-unrelated-histories -m "Sync: Integrated KernelSU from reference repo"
+          # Force merge the reference ksu branch into your new ksu branch
+          git merge ksu_ref/ksu -X theirs --allow-unrelated-histories -m "Sync: Integrated KernelSU from KAGA-KOKO"
           
-          # Push the updated ksu branch
           git push origin ksu
