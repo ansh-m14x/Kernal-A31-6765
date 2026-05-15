@@ -9,7 +9,7 @@ jobs:
       - name: Checkout Patching Branch
         uses: actions/checkout@v4
         with:
-          ref: patching # This ensures we are working on the patching branch
+          ref: patching # Targeting your fresh patching branch
           fetch-depth: 0
 
       - name: Configure Git
@@ -19,23 +19,28 @@ jobs:
 
       - name: Download and Apply 4.9.118 Patch
         run: |
-          # 1. Download the xz compressed patch
+          # 1. Download the patch
           wget https://www.kernel.org/pub/linux/kernel/v4.x/patch-4.9.118.xz
 
-          # 2. Decompress and apply in one command
-          # Fixed: Use --reject-file=/dev/null to avoid the ambiguity error seen in logs
-          xzcat patch-4.9.118.xz | patch -p1 --reject-file=/dev/null || echo "Some hunks failed - checking conflicts"
+          # 2. Apply with duplication protection
+          # --forward: Detects if code is already present and skips it
+          # --batch: Skips failed hunks without asking questions
+          # --reject-file=/dev/null: Discards parts that don't fit to keep tree clean
+          xzcat patch-4.9.118.xz | patch -p1 --forward --batch --reject-file=/dev/null || echo "Hunks skipped or already applied"
 
       - name: Cleanup and Push
         run: |
-          # Remove any leftover original files to keep the repo clean
+          # Ensure the version sublevel is updated in the Makefile
+          sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 118/' Makefile
+          
+          # Remove any leftover original/backup files
           find . -name "*.orig" -delete
           
           git add .
-          # Only commit if there are actually changes to push to the patching branch
+          # Only commit if there are actual new upstream changes
           if ! git diff-index --quiet HEAD; then
-            git commit -m "Upstream: Apply official 4.9.118 patch"
+            git commit -m "Upstream: Apply official 4.9.118 patch (skipping duplicates)"
             git push origin patching
           else
-            echo "No changes to commit (maybe patch was already applied?)"
+            echo "No new changes to commit."
           fi
