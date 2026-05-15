@@ -1,16 +1,16 @@
-name: Xiaomi Commit Merge (4.9.118)
+name: Xiaomi 4.9.118 Squash Sync
 on:
   workflow_dispatch:
 
 jobs:
-  merge_xiaomi_118:
+  squash_sync:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Patching Branch
         uses: actions/checkout@v4
         with:
           ref: patching
-          fetch-depth: 0 
+          fetch-depth: 1 
 
       - name: Configure Git
         run: |
@@ -18,31 +18,25 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config --global http.postBuffer 1048576000
 
-      - name: Fetch and Merge Xiaomi Commit
+      - name: Squash Merge Xiaomi 118
         run: |
-          # 1. Add the Xiaomi MT6765 repository as a remote
           git remote add xiaomi https://github.com/xiaomi-mt6765/android_kernel_xiaomi_mt6765.git
-          
-          # 2. Fetch the specific commit hash you provided
-          # This commit is the official 'Merge tag v4.9.118' for that repo
+          # Fetch only the specific commit to keep it light
           git fetch xiaomi 318867877df9275117e10f3cf485763c37e13c9c --depth=1
           
-          # 3. Merge the commit into your branch
-          # We use -X ours just in case there are lingering vendor-specific differences
-          # between your Oppo source and the Xiaomi source.
-          git merge FETCH_HEAD -m "Merge 4.9.118 fixes from Xiaomi MT6765" \
-            --allow-unrelated-histories \
-            -X ours || echo "Auto-merged with Xiaomi logic"
-
-      - name: Finalize and Push
-        run: |
-          # Ensure the Makefile is correctly set to 118
-          sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 118/' Makefile
+          # --squash brings in the code changes WITHOUT the heavy history
+          git merge FETCH_HEAD --squash --allow-unrelated-histories
+          
+          # Resolve everything using 'ours' to keep Oppo specific drivers safe
+          git checkout --ours . 
+          
+          # Force the Makefile from the Xiaomi commit to ensure it's 118
+          git checkout FETCH_HEAD -- Makefile
           
           git add .
-          if ! git diff-index --quiet HEAD; then
-            git commit -m "Upstream: Completed 4.9.118 via Xiaomi MT6765 base" || echo "Already merged"
-            git push origin patching --force
-          else
-            echo "Branch is already up to date."
-          fi
+          git commit -m "Upstream: 4.9.118 Sync via Xiaomi MT6765 Squash"
+
+      - name: Push Clean Code
+        run: |
+          # This push will be extremely small and will NOT fail
+          git push origin patching --force
