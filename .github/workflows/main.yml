@@ -1,50 +1,49 @@
-name: Upstream Kernel Merge (v4.9.118)
+name: Stable Kernel Merge (v4.9.118)
 on:
   workflow_dispatch:
 
 jobs:
-  merge_upstream:
+  merge_stable:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Patching Branch
         uses: actions/checkout@v4
         with:
           ref: patching
-          fetch-depth: 0 # Full history is required for a clean merge
+          fetch-depth: 0 
 
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Increase buffer for large kernel history push
+          git config --global http.postBuffer 524288000
 
-      - name: Sync with Google Source
+      - name: Merge Tag v4.9.118
         run: |
-          # 1. Add the official Android Kernel Common remote
-          git remote add upstream https://android.googlesource.com/kernel/common
+          # 1. Add the official Linux Stable tree
+          git remote add stable https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
           
-          # 2. Fetch the specific commit that defines 4.9.118
-          # Commit e01202b36f03 is the official "Linux 4.9.118" tag in Google's tree
-          git fetch upstream e01202b36f03f9284ffb51e911f6710d0a62c815 --depth=100
+          # 2. Fetch the specific tag
+          git fetch stable refs/tags/v4.9.118 --no-tags --depth=100
           
-          # 3. Merge with 'recursive' strategy to prioritize original vendor code on simple conflicts
-          # This prevents the 'redefinition' errors by letting Git realize the code is identical
-          git merge FETCH_HEAD -m "Merge tag 'Linux 4.9.118' from Android Common" \
+          # 3. Perform the merge using the 'ours' strategy for conflicts
+          # This ensures that if Oppo/MTK already patched something (like Spectre), 
+          # we keep the vendor version to avoid "already defined" errors.
+          git merge FETCH_HEAD -m "Merge tag 'v4.9.118' of https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux" \
             --allow-unrelated-histories \
-            -X ours || echo "Major conflicts detected - proceeding to auto-resolve"
+            -X ours
 
-      - name: Fix Redefinition Artifacts
+      - name: Finalize Versioning
         run: |
-          # Even with a clean merge, some vendor headers need a final check
-          # This ensures the Makefile is exactly 118
+          # Ensure Makefile reflects the new version
           sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 118/' Makefile
-          
-          # Remove any potential .orig files
-          find . -name "*.orig" -delete
           
           git add .
           if ! git diff-index --quiet HEAD; then
-            git commit -m "Upstream: Completed 4.9.118 sync via Google Source"
-            git push origin patching
+            git commit -m "Upstream: Completed v4.9.118 merge" || echo "No changes"
+            # Force push is often needed when merging unrelated histories for the first time
+            git push origin patching --force
           else
-            echo "No changes needed."
+            echo "Branch is already at 4.9.118."
           fi
