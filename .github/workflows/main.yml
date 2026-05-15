@@ -13,7 +13,7 @@ jobs:
           fetch-depth: 0
 
       - name: Configure Git
-        run: | # Added the missing 'run' key here
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -23,17 +23,16 @@ jobs:
           wget https://www.kernel.org/pub/linux/kernel/v4.x/patch-4.9.118.xz
 
           # 2. Decompress and apply in one command
-          # --reject allows it to keep going even if MediaTek code conflicts
-          xzcat patch-4.9.118.xz | patch -p1 --reject || echo "Some hunks failed - checking conflicts"
+          # Fixed: Use --reject-file=/dev/null to avoid the ambiguity error seen in logs
+          xzcat patch-4.9.118.xz | patch -p1 --reject-file=/dev/null || echo "Some hunks failed - checking conflicts"
 
       - name: Cleanup and Push
         run: |
-          # Remove conflict files to keep the repo clean
-          find . -name "*.rej" -delete
+          # Remove any leftover original files to keep the repo clean
           find . -name "*.orig" -delete
           
           git add .
-          # Only commit if there are actually changes
+          # Only commit if there are actually changes to push to the patching branch
           if ! git diff-index --quiet HEAD; then
             git commit -m "Upstream: Apply official 4.9.118 patch"
             git push origin patching
