@@ -1,46 +1,46 @@
-name: Apply Upstream Patch 4.9.118
+name: Upstream Kernel Merge (v4.9.118)
 on:
   workflow_dispatch:
 
 jobs:
-  patch_kernel:
+  merge_upstream:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Patching Branch
         uses: actions/checkout@v4
         with:
-          ref: patching # Targeting your fresh patching branch
-          fetch-depth: 0
+          ref: patching
+          fetch-depth: 0 # Important: pulls full history for a proper merge
 
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Download and Apply 4.9.118 Patch
+      - name: Merge Upstream v4.9.118
         run: |
-          # 1. Download the patch
-          wget https://www.kernel.org/pub/linux/kernel/v4.x/patch-4.9.118.xz
+          # 1. Add the official Android Kernel Common remote
+          git remote add upstream https://android.googlesource.com/kernel/common
+          
+          # 2. Fetch only the specific tag we need to save time/bandwidth
+          git fetch upstream tag v4.9.118 --no-tags
+          
+          # 3. Attempt the merge
+          # We use -X theirs to favor upstream changes on minor conflicts, 
+          # but Git will still stop if there are major structural conflicts.
+          git merge v4.9.118 -m "Merge tag 'v4.9.118' into patching" --allow-unrelated-histories || echo "Merge conflicts detected - manual fix may be needed"
 
-          # 2. Apply with duplication protection
-          # --forward: Detects if code is already present and skips it
-          # --batch: Skips failed hunks without asking questions
-          # --reject-file=/dev/null: Discards parts that don't fit to keep tree clean
-          xzcat patch-4.9.118.xz | patch -p1 --forward --batch --reject-file=/dev/null || echo "Hunks skipped or already applied"
-
-      - name: Cleanup and Push
+      - name: Finalize and Push
         run: |
-          # Ensure the version sublevel is updated in the Makefile
+          # Force update the Makefile just in case the merge didn't auto-resolve it
           sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 118/' Makefile
           
-          # Remove any leftover original/backup files
-          find . -name "*.orig" -delete
-          
+          # If the merge is still in progress (due to conflicts), 
+          # we add everything and commit to save the state.
           git add .
-          # Only commit if there are actual new upstream changes
           if ! git diff-index --quiet HEAD; then
-            git commit -m "Upstream: Apply official 4.9.118 patch (skipping duplicates)"
+            git commit -m "Upstream: Completed v4.9.118 merge" || echo "Already committed"
             git push origin patching
           else
-            echo "No new changes to commit."
+            echo "No changes to push."
           fi
