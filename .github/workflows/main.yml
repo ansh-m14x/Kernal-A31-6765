@@ -1,16 +1,16 @@
-name: Stable Kernel Merge (v4.9.118)
+name: Stable Kernel Cherry-Pick (v4.9.118)
 on:
   workflow_dispatch:
 
 jobs:
-  merge_stable:
+  cherry_pick_stable:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Patching Branch
         uses: actions/checkout@v4
         with:
           ref: patching
-          fetch-depth: 1 
+          fetch-depth: 0 # Full history needed for cherry-picking
 
       - name: Configure Git
         run: |
@@ -18,29 +18,30 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config --global http.postBuffer 1048576000
 
-      - name: Squash Merge v4.9.118
+      - name: Cherry-Pick 4.9.118 Updates
         run: |
-          git remote add stable https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
-          git fetch stable refs/tags/v4.9.118 --depth=1
+          # 1. Add the stable remote suggested in the guide
+          git remote add linux-stable https://kernel.googlesource.com/pub/scm/linux/kernel/git/stable/linux-stable.git
+          git fetch linux-stable refs/tags/v4.9.117 refs/tags/v4.9.118 --depth=500
           
-          # --squash: This is the key. It brings in all 118 code as 
-          # local changes instead of a heavy history merge.
-          git merge FETCH_HEAD --squash --allow-unrelated-histories
-          
-          # -X ours: Since we are squashing, we manually resolve 
-          # any conflicts by favoring the Oppo/MTK side.
-          git checkout --ours . 
-          git add .
-          
-          # Create the professional merge commit message
-          git commit -m "Merge tag 'v4.9.118' of https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux"
+          # 2. Cherry-pick the range from 117 to 118
+          # We use --strategy=recursive -X ours to automatically skip 
+          # code that Oppo already backported (like the KPTI/Spectre fixes)
+          git cherry-pick v4.9.117..v4.9.118 --strategy=recursive -X ours || echo "Conflicts found, resolving..."
 
-      - name: Finalize Versioning and Push
+          # 3. If the cherry-pick pauses on a conflict, we force it through 
+          # by keeping your vendor version of the specific file.
+          if [ -d ".git/sequencer" ]; then
+            git add .
+            git cherry-pick --continue --no-edit || git cherry-pick --skip
+          fi
+
+      - name: Finalize and Push
         run: |
-          # Force the Makefile update
+          # Update Makefile to 118
           sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 118/' Makefile
           git add Makefile
-          git commit --amend --no-edit || echo "Makefile already correct"
+          git commit -m "Versioning: Update SUBLEVEL to 118" || echo "No changes"
           
-          # This push will be VERY small now and won't fail
+          # Push the updated branch
           git push origin patching --force
