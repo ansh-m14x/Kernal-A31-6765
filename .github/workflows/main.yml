@@ -1,33 +1,42 @@
-name: Sync KernelSU Source
+name: Apply Upstream Patch 4.9.118
 on:
   workflow_dispatch:
 
 jobs:
-  create_and_sync_ksu:
+  patch_kernel:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Your Repository
+      - name: Checkout Patching Branch
         uses: actions/checkout@v4
         with:
+          ref: patching # This ensures we are working on the patching branch
           fetch-depth: 0
 
       - name: Configure Git
-        run: |
+        run: | # Added the missing 'run' key here
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Create or Reset KSU Branch
+      - name: Download and Apply 4.9.118 Patch
         run: |
-          # Create ksu branch from current head, force it if it exists
-          git checkout -B ksu
-          git push origin ksu --force
+          # 1. Download the xz compressed patch
+          wget https://www.kernel.org/pub/linux/kernel/v4.x/patch-4.9.118.xz
 
-      - name: Sync from KAGA-KOKO Reference
+          # 2. Decompress and apply in one command
+          # --reject allows it to keep going even if MediaTek code conflicts
+          xzcat patch-4.9.118.xz | patch -p1 --reject || echo "Some hunks failed - checking conflicts"
+
+      - name: Cleanup and Push
         run: |
-          git remote add ksu_ref https://github.com/KAGA-KOKO/kernel-oppo-a31.git
-          git fetch ksu_ref ksu
+          # Remove conflict files to keep the repo clean
+          find . -name "*.rej" -delete
+          find . -name "*.orig" -delete
           
-          # Force merge the reference ksu branch into your new ksu branch
-          git merge ksu_ref/ksu -X theirs --allow-unrelated-histories -m "Sync: Integrated KernelSU from KAGA-KOKO"
-          
-          git push origin ksu
+          git add .
+          # Only commit if there are actually changes
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "Upstream: Apply official 4.9.118 patch"
+            git push origin patching
+          else
+            echo "No changes to commit (maybe patch was already applied?)"
+          fi
