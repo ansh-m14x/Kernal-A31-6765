@@ -1,44 +1,57 @@
-name: Oppo A12 Direct File Injection (4.9.118)
+name: Swap MediaTek Watchdog Drivers
+
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Allows you to trigger this manually from the GitHub Actions tab
 
 jobs:
-  inject_files:
+  replace-drivers:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Patching Branch
+      - name: Checkout Target Repository (optimized)
         uses: actions/checkout@v4
         with:
-          ref: patching
+          repository: 'ansh-m14x/kernel-oppo-a31'
+          ref: 'optimized'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: current-kernel
 
-      - name: Force Overwrite Critical Files
+      - name: Checkout Source Watchdog Driver (test)
+        uses: actions/checkout@v4
+        with:
+          repository: 'ansh-m14x/kernel'
+          ref: 'test'
+          path: source-watchdog
+
+      - name: Replace Watchdog Code Trees
         run: |
-          # The RAW base URL for the Oppo A12 (P35) 4.9.118 commit
-          RAW_URL="https://raw.githubusercontent.com/Ipin22/kernel/7d4517633a637def7cb7aa792676804b83d8a228"
+          cd current-kernel
+          
+          # Remove old driver directories to prevent conflicting remnants
+          echo "Cleaning out existing watchdog implementation structures..."
+          rm -rf drivers/watchdog/*
+          
+          # Copy the clean tree from your test branch
+          echo "Injecting updated driver architecture..."
+          cp -R ../source-watchdog/drivers/watchdog/* drivers/watchdog/
+          
+          # Verify local Git state changes
+          git status
 
-          # 1. Update Versioning
-          curl -L "$RAW_URL/Makefile" -o Makefile
-
-          # 2. Update Networking (Fixed 4.9.118 versions)
-          curl -L "$RAW_URL/net/ipv4/fib_frontend.c" -o net/ipv4/fib_frontend.c
-          curl -L "$RAW_URL/net/ipv4/ip_fragment.c" -o net/ipv4/ip_fragment.c
-          curl -L "$RAW_URL/net/ipv4/inet_fragment.c" -o net/ipv4/inet_fragment.c
-          curl -L "$RAW_URL/net/ipv4/tcp_input.c" -o net/ipv4/tcp_input.c
-
-          # 3. Update Filesystem Security
-          curl -L "$RAW_URL/fs/squashfs/block.c" -o fs/squashfs/block.c
-
-          # 4. Update core Architecture (Fixes Spectre/KPTI)
-          curl -L "$RAW_URL/arch/arm64/include/asm/mmu.h" -o arch/arm64/include/asm/mmu.h
-          curl -L "$RAW_URL/arch/arm64/kernel/cpufeature.c" -o arch/arm64/kernel/cpufeature.c
-
-      - name: Commit and Push
+      - name: Commit and Push Changes to Optimized Branch
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cd current-kernel
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
-          git add .
-          git commit -m "Sync: Force-injected verified 4.9.118 files from Oppo A12 (MT6765)" || echo "Files already up to date"
+          git add drivers/watchdog/
           
-          # This push is tiny and will not hit the 'index-pack' error
-          git push origin patching --force
+          # Commit only if files actually changed
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "drivers: watchdog: Replace watchdog core infrastructure from test branch"
+            git push origin optimized
+            echo "Successfully swapped out old driver code!"
+          else
+            echo "No changes detected. Code identical."
+          fi
+
