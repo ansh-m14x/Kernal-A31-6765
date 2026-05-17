@@ -1,57 +1,53 @@
-name: Swap MediaTek Watchdog Drivers
+name: Replace Watchdog Infrastructure
 
 on:
-  workflow_dispatch: # Allows you to trigger this manually from the GitHub Actions tab
+  workflow_dispatch: # Allows manual trigger from any branch
 
 jobs:
-  replace-drivers:
+  copy-watchdog:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Target Repository (optimized)
+      - name: Checkout Target Kernel (Forced to optimized branch)
         uses: actions/checkout@v4
         with:
           repository: 'ansh-m14x/kernel-oppo-a31'
-          ref: 'optimized'
+          ref: 'optimized' # Explicitly locks the workspace target to your optimized branch
           token: ${{ secrets.GITHUB_TOKEN }}
-          path: current-kernel
+          path: target-kernel
 
-      - name: Checkout Source Watchdog Driver (test)
+      - name: Checkout Source Watchdog (test branch)
         uses: actions/checkout@v4
         with:
           repository: 'ansh-m14x/kernel'
           ref: 'test'
-          path: source-watchdog
+          path: source-kernel
 
-      - name: Replace Watchdog Code Trees
+      - name: Wipe and Replace Watchdog Folder
         run: |
-          cd current-kernel
+          echo "Cleaning old watchdog structures from target kernel..."
+          rm -rf target-kernel/drivers/watchdog/*
           
-          # Remove old driver directories to prevent conflicting remnants
-          echo "Cleaning out existing watchdog implementation structures..."
-          rm -rf drivers/watchdog/*
+          echo "Copying optimized watchdog drivers from test branch..."
+          cp -R source-kernel/drivers/watchdog/* target-kernel/drivers/watchdog/
           
-          # Copy the clean tree from your test branch
-          echo "Injecting updated driver architecture..."
-          cp -R ../source-watchdog/drivers/watchdog/* drivers/watchdog/
-          
-          # Verify local Git state changes
+          cd target-kernel
           git status
 
-      - name: Commit and Push Changes to Optimized Branch
+      - name: Commit and Force Push to Optimized Branch
         run: |
-          cd current-kernel
+          cd target-kernel
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
           git add drivers/watchdog/
           
-          # Commit only if files actually changed
+          # Check for changes on the targeted branch layout
           if ! git diff-index --quiet HEAD; then
-            git commit -m "drivers: watchdog: Replace watchdog core infrastructure from test branch"
-            git push origin optimized
-            echo "Successfully swapped out old driver code!"
+            git commit -m "drivers: watchdog: Replace with optimized driver infrastructure from test branch"
+            # Explicitly push directly to the remote optimized branch tracking reference
+            git push origin HEAD:refs/heads/optimized
+            echo "Successfully synced and updated the optimized branch layout!"
           else
-            echo "No changes detected. Code identical."
+            echo "No changes detected on the optimized branch. Files are already matching."
           fi
-
