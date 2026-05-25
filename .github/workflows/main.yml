@@ -13,17 +13,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # This fetches the full history
+          fetch-depth: 0
 
       - name: Delete all workflow runs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get all workflow run IDs
-          # We use --all to ensure we get runs from all workflow files
+          # Get all workflow run IDs for the entire repository
           run_ids=$(gh run list --all --limit 1000 --json databaseId -q '.[].databaseId')
           
+          # Delete each run without the --confirm flag
           for id in $run_ids; do
             echo "Deleting run $id"
-            gh run delete "$id" --confirm
+            gh run delete "$id"
           done
