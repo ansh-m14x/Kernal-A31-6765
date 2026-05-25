@@ -1,17 +1,51 @@
-#!/bin/bash
+#!/bin/sh
 
-# set environment variables
-git clone --depth=1 https://github.com/KAGA-KOKO/clang-6.0.2 clang
-export KBUILD_BUILD_HOST="PIE"
-export KBUILD_BUILD_USER="KAGA-KOKO"
-export PATH="$(pwd)/clang/bin:$PATH"
-export LOCALVERSION="-DiscussionVerse"
+set -e -x
 
-# build kernel
-make -j$(nproc --all) O=out ARCH=arm64 oppo6765_19581_defconfig
-make -j16 ARCH=arm64 O=out \
-                      HOSTCC="ccache clang" \
-                      HOSTCXX="ccache clang++" \
-                      CC="ccache clang" \
-                      CROSS_COMPILE=aarch64-linux-gnu- \
-                      CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+# Kernel Source
+KERNEL_SOURCE="https://github.com/ansh-m14x/kernel-oppo-a31"
+KERNEL_BRANCH="11-ksu"
+KERNEL_DEFCONFIG="19581_defconfig"
+
+# Prebuilt Clang Toolchain (AOSP)
+CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-9.0.0_r3/clang-4691093.tar.gz"
+# Prebuilt GCC Utilities (AOSP)
+GCC_x64="https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9"
+GCC_x32="https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9"
+GCC_BRANCH="master-kernel-build-2021"
+
+# Setup make Command
+make_fun() {
+make O=out ARCH=arm64 CC=clang HOSTCC=clang DTC=dtc \
+CLANG_TRIPLE=aarch64-linux-gnu- \
+CROSS_COMPILE=aarch64-linux-androidkernel- "$@"
+}
+
+# Work Path
+WORK="${HOME}/work"
+
+# Kernel Folder Name
+KERNEL="myKernel"
+
+# Kernel Source Path
+KERNEL_SRC="${WORK}/${KERNEL}"
+
+# Prepare Directory
+mkdir -p "${WORK}"
+cd "${WORK}" || exit 1
+
+# Cloning all the Necessary files
+if [ ! -d clang ]; then mkdir clang && curl -Lsq "${CLANG_URL}" -o clang.tgz && tar -xzf clang.tgz -C clang; fi
+[ ! -d x64 ] && git clone --depth=1 "${GCC_x64}" -b "${GCC_BRANCH}" ./x64
+[ ! -d x32 ] && git clone --depth=1 "${GCC_x32}" -b "${GCC_BRANCH}" ./x32
+[ ! -d "${KERNEL}" ] && git clone --depth=1 "${KERNEL_SOURCE}" -b "${KERNEL_BRANCH}" "${KERNEL}"
+
+# Setting Toolchain Path
+PATH="${WORK}/clang/bin:${WORK}/x64/bin:${WORK}/x32/bin:/bin"
+
+# Enter Kernel root directory
+cd "${KERNEL_SRC}" || exit 1
+
+# Start Compiling Kernel
+make_fun "${KERNEL_DEFCONFIG}"
+make_fun -j"$(nproc --all)" 2>&1 | tee build.log
