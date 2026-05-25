@@ -3,7 +3,7 @@
 set -e -x
 
 # Kernel Source
-KERNEL_SOURCE="https://github.com/ansh-m14x/kernel-oppo-a31"
+KERNEL_SOURCE="https://github.com/ansh-m14x/Kernal-A31-6765"
 KERNEL_BRANCH="11-ksu"
 KERNEL_DEFCONFIG="19581_defconfig"
 
@@ -16,9 +16,9 @@ GCC_BRANCH="master-kernel-build-2021"
 
 # Setup make Command
 make_fun() {
-make O=out ARCH=arm64 CC=clang HOSTCC=clang DTC=dtc \
-CLANG_TRIPLE=aarch64-linux-gnu- \
-CROSS_COMPILE=aarch64-linux-androidkernel- "$@"
+	make O=out ARCH=arm64 CC=clang HOSTCC=clang DTC=dtc \
+		CLANG_TRIPLE=aarch64-linux-gnu- \
+		CROSS_COMPILE=aarch64-linux-androidkernel- "$@"
 }
 
 # Work Path
@@ -46,6 +46,9 @@ PATH="${WORK}/clang/bin:${WORK}/x64/bin:${WORK}/x32/bin:/bin"
 # Enter Kernel root directory
 cd "${KERNEL_SRC}" || exit 1
 
+# KernelSU - Disable if not building one.
+# curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
+
 # Start Compiling Kernel
 make_fun "${KERNEL_DEFCONFIG}"
-make_fun -j"$(nproc --all)" 2>&1 | tee build.log
+make_fun -j"$(nproc --all)" 2>&1 | tee build.log 
