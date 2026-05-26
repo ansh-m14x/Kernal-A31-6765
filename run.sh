@@ -3,7 +3,7 @@
 set -e -x
 
 # Kernel Source
-KERNEL_SOURCE="https://github.com/ansh-m14x/Kernal-A31-6765"
+KERNEL_SOURCE="https://github.com/ansh-m14x/Kernel_CPH2015"
 KERNEL_BRANCH="11-ksu"
 KERNEL_DEFCONFIG="19581_defconfig"
 
