@@ -4,7 +4,7 @@ set -e -x
 
 # Kernel Source
 KERNEL_SOURCE="https://github.com/ansh-m14x/Kernel_CPH2015"
-KERNEL_BRANCH="11-ksu"
+KERNEL_BRANCH="119-q"
 KERNEL_DEFCONFIG="19581_defconfig"
 
 # Prebuilt Clang Toolchain (AOSP)
